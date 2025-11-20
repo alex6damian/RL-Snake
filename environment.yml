@@ -12,3 +12,6 @@ dependencies:
   - torchvision
   - torchaudio
   - cpuonly
+  - opencv-python
+  - IPython
+  - tqdm

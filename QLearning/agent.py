@@ -1,150 +1,190 @@
 import sys
 import os
-# Adaugă directorul părinte (root) la calea de căutare a modulelor
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Acum importurile vor funcționa corect
 import torch
 import random
 import numpy as np
 from collections import deque
-from game import SnakeGame, Direction, Point # <- Acest import va funcționa acum
+from game import SnakeGame, Direction, Point 
 
-# Constante pentru antrenament
+# training constants
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
-LR = 0.001 # Learning Rate
+LR = 0.001
 
 class Agent:
     def __init__(self):
         self.n_games = 0
-        self.epsilon = 0  # parametru pentru explorare/exploatare
-        self.gamma = 0.9  # discount factor
-        self.memory = deque(maxlen=MAX_MEMORY)  # stochează experiențele (state, action, reward, next_state, done)
-        # TODO: Aici va veni modelul (Q-table sau Rețea Neuronală)
-        # Pentru Q-learning clasic, am folosi un dicționar
-        self.q_table = {}
+        self.epsilon = 0
+        self.gamma = 0.95
+        self.memory = deque(maxlen=MAX_MEMORY)
+        
+        # two q-tables for double q-learning
+        self.q_table_1 = {}
+        self.q_table_2 = {}
+        
+        # epsilon decay parameters
+        self.epsilon_start = 80
+        self.epsilon_min = 5
+        self.epsilon_decay = 0.995
+        
+        self.load_model()
 
     def get_state(self, game):
-        """
-        Determină starea curentă a jocului.
-        Aceasta este o funcție esențială.
-        """
         head = game.snake[0]
-        point_l = Point(head.x - 20, head.y)
-        point_r = Point(head.x + 20, head.y)
-        point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
-
-        dir_l = game.direction == Direction.LEFT
-        dir_r = game.direction == Direction.RIGHT
-        dir_u = game.direction == Direction.UP
-        dir_d = game.direction == Direction.DOWN
-
-        # Starea este un tuplu de 11 valori booleene
+        
+        # normalized distance to food
+        dx = (game.food.x - head.x) / game.w
+        dy = (game.food.y - head.y) / game.h
+        
+        # discretize distances into categories
+        food_dir_x = 0 if abs(dx) < 0.1 else (1 if dx > 0 else -1)
+        food_dir_y = 0 if abs(dy) < 0.1 else (1 if dy > 0 else -1)
+        
+        # check danger in all 4 directions (absolute, not relative)
+        danger_up = game.is_collision(Point(head.x, head.y - 20))
+        danger_down = game.is_collision(Point(head.x, head.y + 20))
+        danger_left = game.is_collision(Point(head.x - 20, head.y))
+        danger_right = game.is_collision(Point(head.x + 20, head.y))
+        
         state = (
-            # Pericol în față
-            (dir_r and game.is_collision(point_r)) or
-            (dir_l and game.is_collision(point_l)) or
-            (dir_u and game.is_collision(point_u)) or
-            (dir_d and game.is_collision(point_d)),
-
-            # Pericol la dreapta
-            (dir_u and game.is_collision(point_r)) or
-            (dir_d and game.is_collision(point_l)) or
-            (dir_l and game.is_collision(point_u)) or
-            (dir_r and game.is_collision(point_d)),
-
-            # Pericol la stânga
-            (dir_d and game.is_collision(point_r)) or
-            (dir_u and game.is_collision(point_l)) or
-            (dir_r and game.is_collision(point_u)) or
-            (dir_l and game.is_collision(point_d)),
-
-            # Direcția de mișcare
-            dir_l,
-            dir_r,
-            dir_u,
-            dir_d,
-
-            # Poziția mâncării
-            game.food.x < game.head.x,  # Mâncare la stânga
-            game.food.x > game.head.x,  # Mâncare la dreapta
-            game.food.y < game.head.y,  # Mâncare sus
-            game.food.y > game.head.y   # Mâncare jos
+            danger_up, danger_down, danger_left, danger_right,
+            food_dir_x + 1,  # convert -1,0,1 -> 0,1,2 for tuple
+            food_dir_y + 1,
+            game.direction.value  # current direction
         )
-
-        return tuple(int(i) for i in state)
-
-    def get_q_values(self, state):
-        """
-        Obține valorile Q pentru o stare. Dacă starea e nouă, o inițializează.
-        """
-        if state not in self.q_table:
-            self.q_table[state] = np.zeros(3)  # [drept, dreapta, stânga]
-        return self.q_table[state]
+        
+        return state
+    
+    def get_q_values(self, state, table=1):
+        q_table = self.q_table_1 if table == 1 else self.q_table_2
+        if state not in q_table:
+            q_table[state] = np.zeros(3)  # neutral initialization
+        return q_table[state]
 
     def remember(self, state, action, reward, next_state, done):
-        """
-        Stochează o experiență în memorie.
-        """
-        self.memory.append((state, action, reward, next_state, done))
+        # calculate td error as priority
+        q_current = self.get_q_values(state, table=1)[np.argmax(action)]
+        q_next = np.max(self.get_q_values(next_state, table=1))
+        td_error = abs(reward + self.gamma * q_next - q_current)
+        
+        # store with priority
+        priority = td_error + 0.01  # add epsilon to avoid zero priority
+        self.memory.append((state, action, reward, next_state, done, priority))
 
     def train_short_memory(self, state, action, reward, next_state, done):
-        """
-        Antrenament pe baza ultimei mutări (învață la fiecare pas).
-        """
+        """immediate training after each step"""
         self.train_step(state, action, reward, next_state, done)
 
     def train_long_memory(self):
-        """
-        Antrenament pe baza unui eșantion aleatoriu din memorie (învață din experiențe trecute).
-        """
+        """batch training with prioritized experience replay"""
         if len(self.memory) > BATCH_SIZE:
-            mini_sample = random.sample(self.memory, BATCH_SIZE)
+            # extract priorities
+            priorities = np.array([exp[5] for exp in self.memory])
+            probabilities = priorities / priorities.sum()
+            
+            # sample based on priority
+            indices = np.random.choice(len(self.memory), BATCH_SIZE, p=probabilities)
+            mini_sample = [self.memory[i] for i in indices]
         else:
             mini_sample = self.memory
-
-        for state, action, reward, next_state, done in mini_sample:
+        
+        for state, action, reward, next_state, done, _ in mini_sample:
             self.train_step(state, action, reward, next_state, done)
 
     def train_step(self, state, action, reward, next_state, done):
-        """
-        Funcția care aplică formula Bellman pentru a actualiza Q-table.
-        """
-        q_values = self.get_q_values(state).copy()
-        q_values_next = self.get_q_values(next_state)
-
-        # Găsește indexul acțiunii. Acțiunea e [1,0,0], [0,1,0] sau [0,0,1]
+        """double q-learning update step"""
         action_index = np.argmax(action)
-
-        if done:
-            new_q = reward
+        alpha = max(0.1, 0.5 / (1 + self.n_games * 0.001))
+        
+        # randomly choose which q-table to update
+        if random.random() < 0.5:
+            q_values = self.get_q_values(state, table=1).copy()
+            q_next_1 = self.get_q_values(next_state, table=1)
+            q_next_2 = self.get_q_values(next_state, table=2)
+            
+            if done:
+                new_q = reward
+            else:
+                # table 1 selects action, table 2 evaluates it
+                best_action = np.argmax(q_next_1)
+                new_q = reward + self.gamma * q_next_2[best_action]
+            
+            q_values[action_index] = (1 - alpha) * q_values[action_index] + alpha * new_q
+            self.q_table_1[state] = q_values
         else:
-            # Formula Q-learning: Q_new = R + gamma * max(Q_next)
-            new_q = reward + self.gamma * np.max(q_values_next)
-
-        # Actualizează valoarea Q pentru starea și acțiunea respective
-        q_values[action_index] = new_q
-        self.q_table[state] = q_values
+            q_values = self.get_q_values(state, table=2).copy()
+            q_next_1 = self.get_q_values(next_state, table=1)
+            q_next_2 = self.get_q_values(next_state, table=2)
+            
+            if done:
+                new_q = reward
+            else:
+                best_action = np.argmax(q_next_2)
+                new_q = reward + self.gamma * q_next_1[best_action]
+            
+            q_values[action_index] = (1 - alpha) * q_values[action_index] + alpha * new_q
+            self.q_table_2[state] = q_values
 
     def get_action(self, state):
-        """
-        Decide ce acțiune să ia: explorare (aleatoriu) sau exploatare (cea mai bună).
-        """
-        # Epsilon scade pe măsură ce agentul învață mai multe jocuri
-        self.epsilon = 80 - self.n_games
+        """epsilon-greedy action selection with exponential decay"""
+        self.epsilon = max(
+            self.epsilon_min,
+            self.epsilon_start * (self.epsilon_decay ** self.n_games)
+        )
+        
         final_move = [0, 0, 0]
-
-        # Explorare vs. Exploatare
-        if random.randint(0, 200) < self.epsilon:
-            # Alege o mișcare aleatorie
+        
+        if random.random() < self.epsilon / 100:
+            # exploration - random action
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
-            # Alege cea mai bună mișcare pe baza Q-table
-            q_values = self.get_q_values(state)
-            move = np.argmax(q_values)
+            # exploitation - combine both q-tables for decision
+            q1 = self.get_q_values(state, table=1)
+            q2 = self.get_q_values(state, table=2)
+            q_combined = (q1 + q2) / 2
+            
+            move = np.argmax(q_combined)
             final_move[move] = 1
-
+        
         return final_move
+    
+    def save_model(self, filename='q_tables.npy'):
+        """save both q-tables to disk"""
+        try:
+            if not os.path.exists('model'):
+                os.makedirs('model')
+            
+            filepath = os.path.join('model', filename)
+            
+            # save both tables
+            data = {
+                'q_table_1': self.q_table_1,
+                'q_table_2': self.q_table_2
+            }
+            
+            np.save(filepath, data)
+            print(f"model saved: {len(self.q_table_1)} states learned")
+
+        except Exception as e:
+            print(f"error saving model: {e}")
+
+    def load_model(self, filename='q_tables.npy'):
+        """load both q-tables from disk"""
+        filepath = os.path.join('model', filename)
+        if os.path.exists(filepath):
+            try:
+                data = np.load(filepath, allow_pickle=True).item()
+                self.q_table_1 = data.get('q_table_1', {})
+                self.q_table_2 = data.get('q_table_2', {})
+                print(f"model loaded: {len(self.q_table_1)} states")
+            except Exception as e:
+                print(f"error loading model: {e}")
+                self.q_table_1 = {}
+                self.q_table_2 = {}
+        else:
+            print("new model - starting training from scratch")
+            self.q_table_1 = {}
+            self.q_table_2 = {}

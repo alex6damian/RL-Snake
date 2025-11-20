@@ -1,143 +1,196 @@
 import sys
 import os
-# Adaugă directorul părinte (root) la calea de căutare a modulelor
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Acum importurile vor funcționa corect
 import pygame
 import matplotlib.pyplot as plt
-from IPython import display as ipythondisplay
 import numpy as np
-import cv2
+from tqdm import tqdm
+from datetime import datetime
 
 from agent import Agent
-from game import SnakeGame, BLOCK_SIZE # <- Acest import va funcționa acum
+from game import SnakeGame
 
-# --- Funcție nouă pentru plotare ---
-plt.ion() # Activăm modul interactiv pentru matplotlib
-
-def plot(scores, mean_scores):
+def plot_final(scores, mean_scores, save_path=None):
     """
-    Funcție pentru a plota scorurile live.
+    enhanced final plot with multiple statistics
     """
-    ipythondisplay.clear_output(wait=True)
-    ipythondisplay.display(plt.gcf())
-    plt.clf()
-    plt.title('Progresul Antrenamentului')
-    plt.xlabel('Număr Jocuri')
-    plt.ylabel('Scor')
-    plt.plot(scores, label='Scor Joc Curent')
-    plt.plot(mean_scores, label='Scor Mediu')
+    plt.figure(figsize=(15, 10))
+    
+    # plot 1: scores and mean
+    plt.subplot(2, 2, 1)
+    plt.title('Score Evolution', fontsize=14, fontweight='bold')
+    plt.xlabel('Number of Games')
+    plt.ylabel('Score')
+    plt.plot(scores, alpha=0.4, label='Score per Game', color='blue')
+    plt.plot(mean_scores, linewidth=2, label='Cumulative Mean', color='red')
     plt.ylim(ymin=0)
-    plt.text(len(scores)-1, scores[-1], str(scores[-1]))
-    plt.text(len(mean_scores)-1, mean_scores[-1], f"{mean_scores[-1]:.2f}")
     plt.legend()
-    plt.show(block=False)
-    plt.pause(.1)
+    plt.grid(True, alpha=0.3)
+    
+    # plot 2: histogram
+    plt.subplot(2, 2, 2)
+    plt.title('Score Distribution', fontsize=14, fontweight='bold')
+    plt.hist(scores, bins=30, edgecolor='black', color='green', alpha=0.7)
+    plt.xlabel('Score')
+    plt.ylabel('Frequency')
+    plt.grid(True, axis='y', alpha=0.3)
+    
+    # plot 3: moving average
+    plt.subplot(2, 2, 3)
+    plt.title('Moving Average (Last 10 Games)', fontsize=14, fontweight='bold')
+    window = 10
+    if len(scores) >= window:
+        moving_avg = np.convolve(scores, np.ones(window)/window, mode='valid')
+        plt.plot(range(window-1, len(scores)), moving_avg, linewidth=2, color='purple')
+    plt.xlabel('Number of Games')
+    plt.ylabel('Average Score')
+    plt.grid(True, alpha=0.3)
+    
+    # plot 4: statistics text
+    plt.subplot(2, 2, 4)
+    plt.axis('off')
+    
+    stats_text = f"""
+    FINAL STATISTICS
+    {'='*40}
+    
+    Max Score:           {max(scores)}
+    Min Score:           {min(scores)}
+    Mean Score:          {np.mean(scores):.2f}
+    Median Score:        {np.median(scores):.2f}
+    Std Deviation:       {np.std(scores):.2f}
+    
+    Total Games:         {len(scores)}
+    
+    Last 10 games:
+    Mean:                {np.mean(scores[-10:]):.2f}
+    Max:                 {max(scores[-10:])}
+    
+    Last 50 games:
+    Mean:                {np.mean(scores[-50:]) if len(scores) >= 50 else np.mean(scores):.2f}
+    Max:                 {max(scores[-50:]) if len(scores) >= 50 else max(scores)}
+    """
+    
+    plt.text(0.1, 0.5, stats_text, fontsize=11, family='monospace',
+             verticalalignment='center')
+    
+    plt.tight_layout()
+    
+    # save plot if path is provided
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"plot saved to: {save_path}")
+    
+    plt.show()
 
-
-# --- Clasă nouă pentru înregistrare video ---
-class VideoRecorder:
-    def __init__(self, filename, frame_size, fps):
-        self.filename = filename
-        self.frame_size = frame_size
-        self.fps = fps
-        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v') # Codec pentru .mp4
-        self.writer = None
-        self.is_recording = False
-
-    def start_recording(self):
-        """Începe înregistrarea unui nou fișier video."""
-        # Creează un nume de fișier unic cu timestamp
-        unique_filename = f"{self.filename}_{np.random.randint(1000, 9999)}.mp4"
-        self.writer = cv2.VideoWriter(unique_filename, self.fourcc, self.fps, self.frame_size)
-        self.is_recording = True
-        print(f"A început înregistrarea: {unique_filename}")
-
-    def add_frame(self, frame_surface):
-        """Adaugă un cadru la video."""
-        if self.is_recording and self.writer is not None:
-            # Obține pixelii din suprafața Pygame într-un format pe care OpenCV îl înțelege
-            frame_rgb = pygame.surfarray.array3d(frame_surface)
-            frame_bgr = cv2.cvtColor(frame_rgb.swapaxes(0, 1), cv2.COLOR_RGB2BGR)
-            self.writer.write(frame_bgr)
-
-    def stop_recording(self):
-        """Oprește și salvează fișierul video."""
-        if self.is_recording and self.writer is not None:
-            self.writer.release()
-            self.is_recording = False
-            self.writer = None
-            print("Înregistrare finalizată.")
 
 def train():
     """
-    Bucla principală care antrenează agentul, cu plotare și înregistrare.
+    training without ui - only progress bar and final plot
     """
+    NUM_GAMES_TO_TRAIN = 3000
+    
     scores = []
     mean_scores = []
     total_score = 0
     record = 0
     agent = Agent()
-    game = SnakeGame() # w=640, h=480
+    
+    # create results folder if it doesn't exist
+    if not os.path.exists('results'):
+        os.makedirs('results')
+    
+    # create both game variants
+    easy_game = SnakeGame(w=120, h=120, render=False)  # small grid for start
+    normal_game = SnakeGame(w=160, h=160, render=False)  # normal grid
+    hard_game = SnakeGame(w=200, h=200, render=False)  # larger grid for later
+    ultra_hard_game = SnakeGame(w=240, h=240, render=False)  # largest grid for final stage
 
-    # Inițializează recorder-ul video
-    video_recorder = VideoRecorder(
-        filename='record_snake',
-        frame_size=(game.w, game.h),
-        fps=10  # Poți ajusta FPS-ul pentru video
-    )
+    print("\n" + "="*60)
+    print(f"  Q-LEARNING SNAKE TRAINING")
+    print("="*60)
+    print(f"total games:          {NUM_GAMES_TO_TRAIN}")
+    print(f"curriculum:           first 5000 on small grid (16x12)")
+    print(f"                      next 500 on normal grid (32x24)")
+    print(f"                      last 500 on hard grid (64x48)")
+    print(f"epsilon start:        {agent.epsilon_start}")
+    print(f"epsilon min:          {agent.epsilon_min}")
+    print(f"gamma:                {agent.gamma}")
+    print(f"ui mode:              disabled (fast training)")
+    print("="*60 + "\n")
 
-    while True:
-        # Dacă agentul atinge un nou record, vom dori să pornim înregistrarea la următorul joc
-        should_record_next_game = (game.score > record and game.score > 0)
+    # progress bar with tqdm
+    with tqdm(total=NUM_GAMES_TO_TRAIN, desc="training progress", 
+              unit="game", ncols=100) as pbar:
+        
+        for current_game in range(1, NUM_GAMES_TO_TRAIN + 1):
+            # crucial: choose game based on training stage
+            if current_game <= 800:
+                game = easy_game
+                difficulty = "EASY"
+            elif current_game <= 1300:
+                game = normal_game
+                difficulty = "NORMAL"
+            elif current_game <= 2000:
+                game = hard_game
+                difficulty = "HARD"
+            else:
+                game = ultra_hard_game
+                difficulty = "ULTRA HARD"
+            
+            done = False
+            
+            while not done:
+                state_old = agent.get_state(game)
+                final_move = agent.get_action(state_old)
+                reward, done, score = game.step(final_move)
+                state_new = agent.get_state(game)
 
-        # 1. Obține starea curentă
-        state_old = agent.get_state(game)
-
-        # 2. Obține acțiunea de la agent
-        final_move = agent.get_action(state_old)
-
-        # *** Înregistrare video: Adaugă cadru ***
-        # Trebuie să facem asta înainte ca jocul să se termine și să se reseteze
-        video_recorder.add_frame(game.display)
-
-        # 3. Execută acțiunea în joc și primește feedback
-        reward, done, score = game.step(final_move)
-        state_new = agent.get_state(game)
-
-        # 4. Antrenează agentul (short memory)
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
-
-        # 5. Stochează experiența
-        agent.remember(state_old, final_move, reward, state_new, done)
-
-        if done:
-            # *** Înregistrare video: Oprește înregistrarea ***
-            video_recorder.stop_recording()
-
-            # Jocul s-a terminat, resetează
+                agent.train_short_memory(state_old, final_move, reward, state_new, done)
+                agent.remember(state_old, final_move, reward, state_new, done)
+            
+            # game ended
             game.reset()
             agent.n_games += 1
             agent.train_long_memory()
 
             if score > record:
                 record = score
-                # Aici poți salva modelul (Q-table)
-                # np.save('q_table.npy', agent.q_table)
+                agent.save_model()
 
-            print('Joc', agent.n_games, 'Scor', score, 'Record:', record)
-
-            # *** Plotare: Actualizează graficul ***
             scores.append(score)
             total_score += score
             mean_score = total_score / agent.n_games
             mean_scores.append(mean_score)
-            plot(scores, mean_scores)
+            
+            # update progress bar with info
+            pbar.set_postfix({
+                'score': score,
+                'record': record,
+                'mean': f'{mean_score:.1f}',
+                'diff': difficulty,
+                'states': len(agent.q_table_1)
+            })
+            pbar.update(1)
 
-            # *** Înregistrare video: Pornește înregistrarea pentru următorul joc dacă s-a atins un record ***
-            if should_record_next_game:
-                video_recorder.start_recording()
+    print("\n" + "="*60)
+    print("  TRAINING COMPLETED!")
+    print("="*60)
+    print(f"max score reached:    {record}")
+    print(f"final mean score:     {mean_scores[-1]:.2f}")
+    print(f"states learned:       {len(agent.q_table_1)}")
+    print(f"experiences stored:   {len(agent.memory)}")
+    print("="*60 + "\n")
+    
+    # generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_filename = f"results/training_plot_{timestamp}.png"
+    
+    # display and save final plot
+    print("generating and saving plot...")
+    plot_final(scores, mean_scores, save_path=plot_filename)
+
 
 if __name__ == '__main__':
     train()
