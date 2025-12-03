@@ -25,12 +25,44 @@ class Agent:
         self.q_table_2 = {}
         
         # epsilon decay parameters
-        self.epsilon_start = 80
+        self.epsilon_start = 80 # low exploration based on qtables
         self.epsilon_min = 5
         self.epsilon_decay = 0.995
+
+        # tracking actions for analysis
+        self.current_game_frames = []  # save frames of the current game
+        self.best_game_frames = []
+        self.best_game_score = 0
+        self.best_game_w = 0
+        self.best_game_h = 0
         
         self.load_model()
-
+    
+    def start_recording(self):
+        # start a new recording session
+        self.current_game_frames = []
+    
+    def record_frame(self, game):
+        # record the whole state of the game at current frame
+        frame = {
+            'snake': [Point(pt.x, pt.y) for pt in game.snake],  # deep copy
+            'food': Point(game.food.x, game.food.y),
+            'direction': game.direction,
+            'score': game.score
+        }
+        self.current_game_frames.append(frame)
+    
+    def save_best_game(self, score, game_w, game_h):
+        # save the current game if it's the best one so far
+        if score > self.best_game_score:
+            self.best_game_score = score
+            self.best_game_w = game_w  
+            self.best_game_h = game_h 
+            self.best_game_frames = self.current_game_frames.copy()
+            print(f"\n🏆 NEW RECORD GAME SAVED! Score: {score}, Frames: {len(self.best_game_frames)}")
+            return True
+        return False
+    
     def get_state(self, game):
         head = game.snake[0]
         

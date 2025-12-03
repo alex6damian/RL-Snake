@@ -6,6 +6,7 @@ import pygame
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
+import time as time_module
 from datetime import datetime
 
 from agent import Agent
@@ -80,7 +81,7 @@ def plot_final(scores, mean_scores, save_path=None):
     # save plot if path is provided
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"plot saved to: {save_path}")
+        print(f"Plot saved in results folder.")
     
     plt.show()
 
@@ -97,35 +98,36 @@ def train():
     record = 0
     agent = Agent()
     
-    # create results folder if it doesn't exist
-    if not os.path.exists('results'):
-        os.makedirs('results')
+    # create results folder in the same directory as this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.join(script_dir, 'results')
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
     
     # create both game variants
-    easy_game = SnakeGame(w=120, h=120, render=False)  # small grid for start
-    normal_game = SnakeGame(w=160, h=160, render=False)  # normal grid
-    hard_game = SnakeGame(w=200, h=200, render=False)  # larger grid for later
-    ultra_hard_game = SnakeGame(w=240, h=240, render=False)  # largest grid for final stage
+    easy_game = SnakeGame(w=120, h=120, render=False)
+    normal_game = SnakeGame(w=160, h=160, render=False)
+    hard_game = SnakeGame(w=200, h=200, render=False)
+    ultra_hard_game = SnakeGame(w=240, h=240, render=False)
 
     print("\n" + "="*60)
     print(f"  Q-LEARNING SNAKE TRAINING")
     print("="*60)
     print(f"total games:          {NUM_GAMES_TO_TRAIN}")
-    print(f"curriculum:           first 5000 on small grid (16x12)")
-    print(f"                      next 500 on normal grid (32x24)")
-    print(f"                      last 500 on hard grid (64x48)")
+    print(f"curriculum:           first 800 on small grid (200x200)")
+    print(f"                      next 500 on normal grid (400x400)")
+    print(f"                      next 700 on hard grid (600x600)")
+    print(f"                      last 1000 on ultra hard grid (800x800)")
     print(f"epsilon start:        {agent.epsilon_start}")
     print(f"epsilon min:          {agent.epsilon_min}")
     print(f"gamma:                {agent.gamma}")
     print(f"ui mode:              disabled (fast training)")
     print("="*60 + "\n")
 
-    # progress bar with tqdm
     with tqdm(total=NUM_GAMES_TO_TRAIN, desc="training progress", 
               unit="game", ncols=100) as pbar:
         
         for current_game in range(1, NUM_GAMES_TO_TRAIN + 1):
-            # crucial: choose game based on training stage
             if current_game <= 800:
                 game = easy_game
                 difficulty = "EASY"
@@ -140,8 +142,11 @@ def train():
                 difficulty = "ULTRA HARD"
             
             done = False
+            agent.start_recording()
             
             while not done:
+                agent.record_frame(game)
+                
                 state_old = agent.get_state(game)
                 final_move = agent.get_action(state_old)
                 reward, done, score = game.step(final_move)
@@ -150,21 +155,22 @@ def train():
                 agent.train_short_memory(state_old, final_move, reward, state_new, done)
                 agent.remember(state_old, final_move, reward, state_new, done)
             
-            # game ended
-            game.reset()
-            agent.n_games += 1
-            agent.train_long_memory()
-
+            agent.record_frame(game)
+            
             if score > record:
                 record = score
                 agent.save_model()
+                agent.save_best_game(score, game.w, game.h)  # PASEAZĂ DIMENSIUNILE REALE
+            
+            game.reset()
+            agent.n_games += 1
+            agent.train_long_memory()
 
             scores.append(score)
             total_score += score
             mean_score = total_score / agent.n_games
             mean_scores.append(mean_score)
             
-            # update progress bar with info
             pbar.set_postfix({
                 'score': score,
                 'record': record,
@@ -183,14 +189,41 @@ def train():
     print(f"experiences stored:   {len(agent.memory)}")
     print("="*60 + "\n")
     
-    # generate filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_filename = f"results/training_plot_{timestamp}.png"
+    plot_filename = os.path.join(results_dir, f"training_plot_{timestamp}.png")
     
-    # display and save final plot
     print("generating and saving plot...")
     plot_final(scores, mean_scores, save_path=plot_filename)
+    
+    # save replay with CORRECT dimensions
+    if len(agent.best_game_frames) > 0:
+        replay_filename = os.path.join(results_dir, f"best_game_replay_{timestamp}.npy")
+        
+        # FOLOSEȘTE DIMENSIUNILE SALVATE ÎN AGENT
+        np.save(replay_filename, {
+            'frames': agent.best_game_frames,
+            'score': agent.best_game_score,
+            'w': agent.best_game_w,  # DIMENSIUNILE CORECTE
+            'h': agent.best_game_h   # DIMENSIUNILE CORECTE
+        })
+        print(f"Best game replay saved: {replay_filename}")
+        print(f"Grid size: {agent.best_game_w}x{agent.best_game_h}")
+        print(f"Total frames recorded: {len(agent.best_game_frames)}")
 
+        if replay_filename and os.path.exists(replay_filename):
+            print("\n" + "="*60)
+            response = input("Do you want to watch the best game replay? (y/n): ").strip().lower()
+            
+            if response == 'y' or response == 'yes':
+                print("\nStarting replay in 2 seconds...")
+                time_module.sleep(2)
+                
+                from replay_best_game import replay_best_game
+                replay_best_game(replay_filename)
+            else:
+                print("\nReplay skipped. You can watch it later by running:")
+                print(f"python replay_best_game.py")
 
 if __name__ == '__main__':
     train()
+    
