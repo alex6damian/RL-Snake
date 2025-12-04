@@ -54,7 +54,7 @@ def plot_final(scores, mean_scores, save_path=None):
     plt.subplot(2, 2, 4)
     plt.axis('off')
     
-    # Calculează valorile înainte de f-string
+    # calculate values before f-string
     max_score = max(scores)
     min_score = min(scores)
     mean_score = np.mean(scores)
@@ -100,10 +100,8 @@ def plot_final(scores, mean_scores, save_path=None):
 
 
 def train():
-    """
-    Training OPTIMIZAT pentru viteză maximă. 
-    """
-    NUM_GAMES_TO_TRAIN = 1000
+    # optimized training loop
+    NUM_GAMES_TO_TRAIN = 5000
     TRAIN_FREQUENCY = 4
     
     scores = []
@@ -117,8 +115,8 @@ def train():
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
     
-    # Griduri
-    small_game = SnakeGame(w=600, h=600, render=False)
+    # different game sizes for curriculum learning
+    small_game = SnakeGame(w=200, h=200, render=False)
     medium_game = SnakeGame(w=400, h=400, render=False)
     large_game = SnakeGame(w=600, h=600, render=False)
     xlarge_game = SnakeGame(w=800, h=800, render=False)
@@ -157,15 +155,15 @@ def train():
             
             done = False
             agent.start_recording()
+            agent.record_frame(game) # record initial frame
             
-            while not done:
-                if step_counter % 10 == 0:
-                    agent.record_frame(game)
-                
+            while not done:                
                 state_old = agent.get_state(game)
                 final_move = agent.get_action(state_old)
                 reward, done, score = game.step(final_move)
                 state_new = agent.get_state(game)
+
+                agent.record_frame(game)
 
                 if step_counter % TRAIN_FREQUENCY == 0:
                     agent.train_short_memory(state_old, final_move, reward, state_new, done)
@@ -173,7 +171,7 @@ def train():
                 agent.remember(state_old, final_move, reward, state_new, done)
                 step_counter += 1
             
-            agent.record_frame(game)
+            # agent.record_frame(game) moved inside the loop
             
             if score > record:
                 record = score
@@ -190,11 +188,11 @@ def train():
             mean_score = total_score / agent.n_games
             mean_scores. append(mean_score)
             
-            # Calculează FPS
+            # calculate FPS
             elapsed = time_module.time() - start_time
             games_per_sec = current_game / elapsed if elapsed > 0 else 0
             
-            # FIX: Elimină spațiile din format specifiers
+            # FIX: remove spaces from format specifiers
             pbar.set_postfix({
                 'score': score,
                 'record': record,
@@ -205,7 +203,7 @@ def train():
             })
             pbar.update(1)
             
-            # Print periodic updates
+            # print periodic updates
             if current_game % 500 == 0:
                 last_100_mean = np.mean(scores[-100:])
                 tqdm.write(f"\n📊 Checkpoint at game {current_game}:")
@@ -237,7 +235,7 @@ def train():
     print("Generating and saving plot...")
     plot_final(scores, mean_scores, save_path=plot_filename)
     
-    # Save replay
+    # save replay
     if len(agent.best_game_frames) > 0:
         replay_filename = os.path. join(results_dir, f"dqn_best_replay_{timestamp}.npy")
         

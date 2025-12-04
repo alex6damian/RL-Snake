@@ -167,19 +167,10 @@ def replay_best_game(replay_file):
         # draw apple with enhanced graphics
         draw_apple(display, frame['food'].x, frame['food'].y)
         
-        # Display score with better styling
-        # text = font.render(f"Score: {frame['score']} | Frame: {i+1}/{len(frames)}", True, WHITE)
-        # Add black background for better readability
-        # text_rect = text.get_rect()
-        # text_rect.topleft = (5, 5)
-        # background_rect = text_rect.inflate(10, 5)
-        # pygame.draw.rect(display, BLACK, background_rect)
-        # display.blit(text, [5, 5])
-        
         pygame.display.flip()
         
         # control speed - you can adjust this
-        clock.tick(60)  # 10 FPS - ajustează pentru viteză
+        clock.tick(120)  # 60 FPS - adjust for speed
     
     print(f"\nReplay finished! Final score: {frames[-1]['score']}")
     print("Press any key to close...")
@@ -194,7 +185,7 @@ def replay_best_game(replay_file):
     pygame.quit()
 
 if __name__ == '__main__':
-    # caută cel mai recent fișier de replay
+    # search for the most recent replay file
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.join(script_dir, 'results')
     
@@ -202,13 +193,13 @@ if __name__ == '__main__':
         print(f"Results directory not found: {results_dir}")
         sys.exit(1)
     
-    replay_files = [f for f in os.listdir(results_dir) if f.startswith('best_game_replay_')]
+    replay_files = [f for f in os.listdir(results_dir) if f.startswith('dqn_best_replay_')]
     
     if not replay_files:
         print("No replay files found!")
         print(f"Looked in: {results_dir}")
     else:
-        # ia cel mai recent
+        # most recent replay
         latest_replay = sorted(replay_files)[-1]
         replay_path = os.path.join(results_dir, latest_replay)
         print(f"Loading replay: {latest_replay}")

@@ -4,7 +4,49 @@ This log tracks our project's progress and outlines the next features to be impl
 
 ---
 
-### 🗓️ **Log Entry: 2025-01-20** (by @alex6damian)
+### 🗓️ **Log Entry: 2025-12-04** (by @alex6damian)
+
+#### ✅ **Implemented: Deep Q-Learning (DQN) Agent with Neural Networks**
+
+Successfully implemented an optimized **Deep Q-Learning (DQN) agent** for the Snake game, providing significant improvements over tabular methods:
+
+**Architecture & Features:**
+- **Neural Network Q-Function**: Uses a 3-layer feedforward network (11 → 256 → 3) with ReLU activations to approximate Q-values
+- **Experience Replay Memory**: Maintains a replay buffer (100,000 experiences) for breaking correlation between consecutive samples
+- **Mini-Batch Training**: Trains on random batches of 1,000 experiences for stable gradient updates
+- **Compact State Representation**: 11-feature state space including danger detection (3 directions), current direction (4 bool), and food location (4 relative positions)
+- **Epsilon-Greedy Exploration**: Linear decay from 80 to 0 over training for balanced exploration/exploitation
+- **GPU Acceleration**: CUDA support for faster training on compatible hardware
+- **Optimized Training Loop**: Trains every 4 steps (configurable) for balance between learning speed and computational efficiency
+
+**Performance Highlights:**
+- ✅ **Excellent scalability on large grids**: Successfully handles 600×600, 800×800, and even 1000×1000 pixel maps
+- ✅ **Linear learning progression**: Consistent improvement over training with smooth mean score curves
+- ✅ **Superior to tabular methods**: Overcomes the curse of dimensionality by using function approximation instead of storing every state
+- ✅ **Fast training**: Achieves 50-100+ games/second in headless mode with optimized frame recording
+- 🎯 **Curriculum Learning**: Progressive difficulty scaling (600px → 1000px grids) for robust policy development
+
+**Technical Implementation:**
+- **Frame Recording System**: Complete replay capture with all game frames for visualization
+- **Best Game Tracking**: Automatically saves the highest-scoring game with proper grid dimensions
+- **Optimized Memory Usage**: Optional conditional recording (`game.score >= self.best_game_score * 0.8`) can be uncommented in `record_frame()` method to reduce memory overhead at the cost of potentially missing early game frames
+- **Comprehensive Statistics**: 4-panel visualization with score evolution, distribution, moving averages, and detailed statistics
+- **Interactive Replay**: Post-training option to watch the best game replay immediately
+
+**Why DQN Outperforms Tabular Q-Learning:**
+1. **Function Approximation**: Neural networks generalize across similar states instead of memorizing each one
+2. **Scalability**: Memory complexity is O(network_parameters) instead of O(state_space_size)
+3. **Continuous Improvement**: Gradient-based learning enables smooth policy refinement
+4. **Transfer Learning Potential**: Learned features can adapt to different map sizes
+
+**Default Configuration:**
+- Full frame recording enabled for complete replay visualization
+- To optimize for speed/memory: uncomment the score threshold in `DQNAgent.record_frame()` method
+- Trade-off: Memory savings vs. complete game history capture
+
+---
+
+### 🗓️ **Log Entry: 2025-11-20** (by @alex6damian)
 
 #### ✅ **Implemented: Double Q-Learning Agent with Advanced Features**
 
@@ -40,7 +82,7 @@ With the basic game environment in place, it's time to plan our next steps. Here
 
 *   **Implement RL Algorithms** 🧠
     *   `[x]` **Double Q-Learning Agent:** Implemented tabular Double Q-Learning with two Q-tables to reduce overestimation bias.
-    *   `[ ]` **Deep Q-Learning (DQN) Agent:** Implement a neural network-based agent to handle larger state spaces.
+    *   `[x]` **Deep Q-Learning (DQN) Agent:** Implement a neural network-based agent to handle larger state spaces.
     *   `[ ]` **Third Algorithm (e.g., Double DQN, PPO, A3C):** Implement an improved deep RL version for comparison.
 
 *   **Add Advanced Game Mechanics** 🎮

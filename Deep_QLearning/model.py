@@ -6,7 +6,7 @@ import os
 import numpy as np
 
 class Linear_QNet(nn.Module):
-    """Rețea optimizată pentru DQN."""
+    """Optimized network for DQN."""
     def __init__(self, input_size, hidden_size, output_size):
         super(Linear_QNet, self).__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
@@ -29,7 +29,7 @@ class Linear_QNet(nn.Module):
 
 
 class QTrainer:
-    """Trainer optimizat."""
+    """Optimized trainer."""
     def __init__(self, model, lr, gamma):
         self.lr = lr
         self.gamma = gamma
@@ -39,14 +39,14 @@ class QTrainer:
         self.device = next(model.parameters()).device
     
     def train_step(self, state, action, reward, next_state, done):
-        """Training step OPTIMIZAT pentru batch processing."""
-        # Convertește la numpy arrays mai întâi (mai rapid)
+        """Optimized training for batch processing."""
+        # convert to numpy arrays first (faster)
         state = np.array(state, dtype=np.float32)
         next_state = np.array(next_state, dtype=np.float32)
         action = np. array(action)
         reward = np.array(reward, dtype=np.float32)
         
-        # Verifică dacă e batch sau single sample
+        # check if batch or single sample
         if len(state. shape) == 1:
             state = np.expand_dims(state, 0)
             next_state = np.expand_dims(next_state, 0)
@@ -54,17 +54,17 @@ class QTrainer:
             reward = np.expand_dims(reward, 0)
             done = (done, )
         
-        # Convertește la tensori o singură dată
+        # convert to tensors once
         state = torch.tensor(state, dtype=torch.float, device=self.device)
         next_state = torch. tensor(next_state, dtype=torch.float, device=self. device)
         action = torch. tensor(action, dtype=torch. long, device=self.device)
         reward = torch.tensor(reward, dtype=torch.float, device=self.device)
         
-        # Predicted Q values
+        # predicted Q values
         pred = self.model(state)
         target = pred.clone()
         
-        # Calculează Q values pentru batch (vectorizat)
+        # calculate Q values for batch (vectorized)
         with torch.no_grad():
             next_q_values = self.model(next_state)
             max_next_q = torch.max(next_q_values, dim=1)[0]
@@ -76,7 +76,7 @@ class QTrainer:
             
             target[idx][torch.argmax(action[idx]). item()] = Q_new
         
-        # Backpropagation
+        # backpropagation
         self. optimizer.zero_grad()
         loss = self.criterion(target, pred)
         loss.backward()

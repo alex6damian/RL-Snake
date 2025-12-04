@@ -9,15 +9,13 @@ from collections import deque
 from game import SnakeGame, Direction, Point
 from model import Linear_QNet, QTrainer
 
-# Constante pentru antrenament
+# training constants
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001
 
 class DQNAgent:
-    """
-    Agent Deep Q-Learning optimizat pentru antrenament rapid.  
-    """
+    # Deep Q-Learning agent optimized for fast training
     def __init__(self, epsilon_start=80, epsilon_min=0):
         self.n_games = 0
         self.epsilon_start = epsilon_start
@@ -26,34 +24,38 @@ class DQNAgent:
         self.gamma = 0.9
         self.memory = deque(maxlen=MAX_MEMORY)
         
-        # Verifică dacă CUDA e disponibil
+        # check if cuda is available
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"🖥️  Using device: {self.device}")
         
         self.model = Linear_QNet(11, 256, 3).to(self.device)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
         
-        # Recording
+        # recording
         self.best_game_score = 0
         self.best_game_frames = []
         self.current_game_frames = []
         self.is_recording = False
-        self. best_game_w = 0
+        self.best_game_w = 0
         self.best_game_h = 0
+        
+        # optimization: cache for torch conversions
+        self._state_cache = None
     
     def get_state(self, game):
-        """Returnează starea - OPTIMIZAT."""
+        # return state - optimized
         head = game.snake[0]
         point_l = Point(head.x - 20, head.y)
         point_r = Point(head.x + 20, head.y)
         point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
+        point_d = Point(head. x, head.y + 20)
 
         dir_l = game.direction == Direction.LEFT
         dir_r = game.direction == Direction.RIGHT
         dir_u = game.direction == Direction.UP
         dir_d = game.direction == Direction. DOWN
 
+        # Use numpy array directly (faster than list)
         state = np.array([
             (dir_r and game.is_collision(point_r)) or
             (dir_l and game. is_collision(point_l)) or
@@ -73,63 +75,69 @@ class DQNAgent:
             dir_l, dir_r, dir_u, dir_d,
 
             game. food.x < game.head.x,
-            game.food.x > game. head.x,
-            game. food.y < game.head. y,
-            game.food. y > game.head.y
-        ], dtype=np.float32)
+            game.food.x > game.head.x,
+            game.food.y < game.head.y,
+            game.food.y > game.head.y
+        ], dtype=np.float32)  # float32 is faster than int
 
         return state
     
     def start_recording(self):
-        """Începe înregistrarea unui joc nou."""
-        self.current_game_frames = []
+        # start recording
+        self. current_game_frames = []
         self.is_recording = True
     
     def record_frame(self, game):
-        """
-        Salvează frame-ul curent - FIX: înregistrează toate frame-urile pentru best game. 
-        """
-        if self. is_recording:
+        # record only if score is promising
+        '''
+        use this condition only for better performance
+        (less memory usage and faster saving time)
+        problem: misses the starting frames of best games
+        '''
+        # if self.is_recording and game.score >= self.best_game_score * 0.8:
+        if self.is_recording:
             frame = {
                 'snake': game.snake. copy(),
                 'food': game.food,
                 'score': game.score,
-                'direction': game.direction
+                'direction': game. direction
             }
             self.current_game_frames.append(frame)
     
     def save_best_game(self, score, w, h):
-        """Salvează jocul dacă este cel mai bun."""
+        # saving best game
         if score > self.best_game_score:
             self.best_game_score = score
-            self. best_game_frames = self. current_game_frames.copy()
+            self. best_game_frames = self.current_game_frames.copy()
             self.best_game_w = w
-            self.best_game_h = h
+            self. best_game_h = h
+        # memory optimization (clear after every game)
+        self.current_game_frames = []
     
     def save_model(self):
-        """Salvează modelul neural."""
+        # saving model
         model_folder_path = './model'
-        if not os. path.exists(model_folder_path):
+        if not os.path. exists(model_folder_path):
             os.makedirs(model_folder_path)
         
         file_name = os.path.join(model_folder_path, 'dqn_model.pth')
-        torch.save(self.model. state_dict(), file_name)
+        torch.save(self.model.state_dict(), file_name)
     
     def load_model(self, file_name='dqn_model.pth'):
-        """Încarcă modelul neural."""
+        # loading model
         model_path = os.path.join('./model', file_name)
         if os.path.exists(model_path):
-            self.model. load_state_dict(torch. load(model_path, map_location=self.device))
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
             self.model.eval()
             return True
         return False
     
     def remember(self, state, action, reward, next_state, done):
-        """Stochează experiența."""
-        self.memory.append((state, action, reward, next_state, done))
+        # saving experience
+        self.memory. append((state, action, reward, next_state, done))
     
     def train_long_memory(self):
-        """Experience replay - OPTIMIZAT."""
+        # experience replay - optimized
         if len(self.memory) > BATCH_SIZE:
             mini_sample = random.sample(self.memory, BATCH_SIZE)
         else:
@@ -142,11 +150,11 @@ class DQNAgent:
         self.trainer.train_step(states, actions, rewards, next_states, dones)
     
     def train_short_memory(self, state, action, reward, next_state, done):
-        """Antrenament pe ultimul pas."""
+        # training on the last step
         self.trainer.train_step(state, action, reward, next_state, done)
     
     def get_action(self, state):
-        """Epsilon-greedy - OPTIMIZAT cu torch."""
+        # epsilon-greedy - optimized with torch
         self.epsilon = max(self.epsilon_min, self.epsilon_start - self.n_games)
         final_move = [0, 0, 0]
         
@@ -154,8 +162,9 @@ class DQNAgent:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
+            # optimized: direct conversion to tensor
             state_tensor = torch.tensor(state, dtype=torch.float, device=self.device)
-            with torch.no_grad():
+            with torch.no_grad():  # no grad needed for inference
                 prediction = self.model(state_tensor)
             move = torch.argmax(prediction). item()
             final_move[move] = 1

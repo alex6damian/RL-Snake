@@ -4,9 +4,7 @@ from IPython import display
 plt.ion()
 
 def plot(scores, mean_scores):
-    """
-    Funcție helper pentru plotare simplificată.
-    """
+    # helper function to plot scores during training
     display.clear_output(wait=True)
     display.display(plt.gcf())
     plt. clf()
@@ -17,7 +15,7 @@ def plot(scores, mean_scores):
     plt.plot(mean_scores, label='Mean Score', color='red', linewidth=2)
     plt. ylim(ymin=0)
     
-    # Adaugă textul pentru ultimele valori
+    # add text for the latest values
     if len(scores) > 0:
         plt.text(len(scores)-1, scores[-1], str(scores[-1]))
     if len(mean_scores) > 0:
