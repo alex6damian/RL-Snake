@@ -88,7 +88,7 @@ With the basic game environment in place, it's time to plan our next steps. Here
 *   **Add Advanced Game Mechanics** 🎮
     *   `[ ]` **Traps/Obstacles** 🚧: Add static or moving obstacles to the map to increase difficulty and test the agent's adaptability.
     *   `[ ]` **Snake Power-ups** ✨: Introduce temporary abilities for the snake, such as a speed boost, invincibility, or a "score multiplier" item.
-    *   `[ ]` **Variable Grid Sizes** 📏: Test agents on different map dimensions to evaluate scalability.
+    *   `[x]` **Variable Grid Sizes** 📏: Test agents on different map dimensions to evaluate scalability.
 
 *   **Analysis & Visualization** 📊
     *   `[x]` **Plotting Module:** Advanced 9-panel visualization with score trends, distributions, quartile analysis, and epsilon tracking.
@@ -97,4 +97,4 @@ With the basic game environment in place, it's time to plan our next steps. Here
 ---
 
 ### 📌 **Current Focus**
-Next priority is implementing **Deep Q-Learning (DQN)** with neural networks to overcome the scalability limitations of tabular Double Q-Learning on larger maps.
+Next priority is implementing **Third RL Algorithm**.
