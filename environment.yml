@@ -1,17 +1,17 @@
 name: rl_snake_env
 channels:
-  - pytorch
-  - conda-forge
-  - defaults
+    - pytorch
+    - conda-forge
+    - defaults
 dependencies:
-  - python=3.9
-  - pygame
-  - numpy
-  - matplotlib
-  - pytorch
-  - torchvision
-  - torchaudio
-  - cpuonly
-  - opencv-python
-  - IPython
-  - tqdm
+    - python=3.9
+    - pygame
+    - numpy
+    - matplotlib
+    - pytorch
+    - torchvision
+    - torchaudio
+    - cpuonly
+    - opencv
+    - IPython
+    - tqdm
