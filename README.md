@@ -50,7 +50,7 @@ We have successfully implemented the core game environment and multiple RL agent
 
 ### 🧠 Implemented RL Algorithms
 
-*   **Double Q-Learning Agent** 📊: 
+*   **Double Q-Learning Agent** 📊:
     - Tabular approach with dual Q-tables to reduce overestimation bias
     - ✅ Performs well on **small grids** (320×240, 400×400)
     - ⚠️ Struggles with **large grids** due to exponential state space growth
@@ -63,6 +63,19 @@ We have successfully implemented the core game environment and multiple RL agent
     - GPU-accelerated training with experience replay
     - Complete game replay system with configurable frame recording
     - Best for scalable, high-performance training across variable map sizes
+
+*   **Dueling DQN Agent** 🎯:
+    - Enhanced DQN with separate Value and Advantage streams
+    - Improved state value estimation through dual-stream architecture
+    - Better performance on complex decision-making scenarios
+
+*   **Proximal Policy Optimization (PPO) Agent** 🌟:
+    - Policy-based approach with Actor-Critic architecture
+    - ✅ Stable learning through clipped objective function
+    - ✅ Direct policy optimization without Q-value overestimation
+    - On-policy learning with entropy regularization
+    - Excellent exploration through stochastic policy sampling
+    - Best for environments requiring stable, consistent policy improvement
 
 ---
 
@@ -78,6 +91,16 @@ python Double_QLearning/train.py
 python Deep_QLearning/train.py
 ```
 
+### Train Dueling DQN Agent
+```bash
+python "Dueling DQN/train.py"
+```
+
+### Train PPO Agent (Policy-Based)
+```bash
+python PPO/train.py
+```
+
 ### Watch Replays
 ```bash
 python replay_best_game.py
@@ -87,10 +110,12 @@ python replay_best_game.py
 
 ## 📊 Performance Comparison
 
-| Algorithm | Grid Size | Training Speed | Scalability | Best Use Case |
-|-----------|-----------|----------------|-------------|---------------|
-| Double Q-Learning | 320×240 | ⚡ Fast (50-100 games/s) | ⚠️ Limited | Small, simple environments |
-| DQN | 600×600+ | ⚡ Fast (100+ games/s) | ✅ Excellent | Large, complex environments |
+| Algorithm | Type | Grid Size | Training Speed | Scalability | Best Use Case |
+|-----------|------|-----------|----------------|-------------|---------------|
+| Double Q-Learning | Value-based | 320×240 | ⚡ Fast (50-100 games/s) | ⚠️ Limited | Small, simple environments |
+| DQN | Value-based | 600×600+ | ⚡ Fast (100+ games/s) | ✅ Excellent | Large, complex environments |
+| Dueling DQN | Value-based | 600×600+ | ⚡ Fast (100+ games/s) | ✅ Excellent | Complex decision-making |
+| PPO | Policy-based | 600×600+ | ⚡ Medium (50-80 games/s) | ✅ Excellent | Stable policy learning |
 
 ---
 
