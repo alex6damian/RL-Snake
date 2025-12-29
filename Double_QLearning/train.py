@@ -1,229 +1,231 @@
 import sys
 import os
+# Adăugăm calea către folderul părinte pentru a importa game.py corect
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import pygame
+import matplotlib
+matplotlib.use('Agg')  # Backend non-interactiv
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import time as time_module
 from datetime import datetime
 
+# Importăm Agentul tău NOU și Jocul comun
 from agent import Agent
 from game import SnakeGame
 
 def plot_final(scores, mean_scores, save_path=None):
     """
-    enhanced final plot with multiple statistics
+    Generează graficul final cu statistici detaliate.
     """
     plt.figure(figsize=(15, 10))
     
-    # plot 1: scores and mean
+    # 1. Evoluția Scorului
     plt.subplot(2, 2, 1)
-    plt.title('Score Evolution', fontsize=14, fontweight='bold')
-    plt.xlabel('Number of Games')
+    plt.title('Score Evolution - Double Q-Learning (Optimized)', fontsize=12, fontweight='bold')
+    plt.xlabel('Games')
     plt.ylabel('Score')
-    plt.plot(scores, alpha=0.4, label='Score per Game', color='blue')
-    plt.plot(mean_scores, linewidth=2, label='Cumulative Mean', color='red')
-    plt.ylim(ymin=0)
+    plt.plot(scores, alpha=0.3, color='blue', label='Score')
+    plt.plot(mean_scores, linewidth=2, color='red', label='Mean')
     plt.legend()
-    plt.grid(True, alpha=0.3)
+    plt.grid(alpha=0.3)
     
-    # plot 2: histogram
+    # 2. Distribuția Scorurilor (Histogramă)
     plt.subplot(2, 2, 2)
-    plt.title('Score Distribution', fontsize=14, fontweight='bold')
-    plt.hist(scores, bins=30, edgecolor='black', color='green', alpha=0.7)
+    plt.title('Score Distribution', fontsize=12, fontweight='bold')
+    plt.hist(scores, bins=30, color='green', alpha=0.7, edgecolor='black')
     plt.xlabel('Score')
     plt.ylabel('Frequency')
-    plt.grid(True, axis='y', alpha=0.3)
     
-    # plot 3: moving average
+    # 3. Media Mobilă (Moving Average - 100 jocuri)
     plt.subplot(2, 2, 3)
-    plt.title('Moving Average (Last 10 Games)', fontsize=14, fontweight='bold')
-    window = 10
-    if len(scores) >= window:
-        moving_avg = np.convolve(scores, np.ones(window)/window, mode='valid')
-        plt.plot(range(window-1, len(scores)), moving_avg, linewidth=2, color='purple')
-    plt.xlabel('Number of Games')
-    plt.ylabel('Average Score')
-    plt.grid(True, alpha=0.3)
+    plt.title('Moving Average (Last 100 Games)', fontsize=12, fontweight='bold')
+    if len(scores) >= 100:
+        moving_avg = np.convolve(scores, np.ones(100)/100, mode='valid')
+        plt.plot(moving_avg, color='purple', linewidth=2)
+    else:
+        plt.plot(scores, color='purple')
+    plt.grid(alpha=0.3)
     
-    # plot 4: statistics text
+    # 4. Statistici Text
     plt.subplot(2, 2, 4)
     plt.axis('off')
     
-    stats_text = f"""
+    max_score = max(scores) if scores else 0
+    mean_val = np.mean(scores) if scores else 0
+    std_val = np.std(scores) if scores else 0
+    last_100 = np.mean(scores[-100:]) if len(scores) >= 100 else mean_val
+    
+    stats = f"""
     FINAL STATISTICS
-    {'='*40}
+    ----------------
+    Total Games:    {len(scores)}
+    Max Score:      {max_score}
+    Mean Score:     {mean_val:.2f}
+    Std Deviation:  {std_val:.2f}
     
-    Max Score:           {max(scores)}
-    Min Score:           {min(scores)}
-    Mean Score:          {np.mean(scores):.2f}
-    Median Score:        {np.median(scores):.2f}
-    Std Deviation:       {np.std(scores):.2f}
-    
-    Total Games:         {len(scores)}
-    
-    Last 10 games:
-    Mean:                {np.mean(scores[-10:]):.2f}
-    Max:                 {max(scores[-10:])}
-    
-    Last 50 games:
-    Mean:                {np.mean(scores[-50:]) if len(scores) >= 50 else np.mean(scores):.2f}
-    Max:                 {max(scores[-50:]) if len(scores) >= 50 else max(scores)}
+    Last 100 Avg:   {last_100:.2f}
     """
-    
-    plt.text(0.1, 0.5, stats_text, fontsize=11, family='monospace',
-             verticalalignment='center')
+    plt.text(0.1, 0.5, stats, fontsize=12, family='monospace')
     
     plt.tight_layout()
-    
-    # save plot if path is provided
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Plot saved in results folder.")
-    
-    plt.show()
-
+        plt.savefig(save_path)
+        print(f"✅ Plot saved to {save_path}")
+    plt.close()
 
 def train():
-    """
-    training without ui - only progress bar and final plot
-    """
-    NUM_GAMES_TO_TRAIN = 3000
+    # --- SETĂRI ANTRENAMENT ---
+    NUM_GAMES_TO_TRAIN = 5000
     
     scores = []
     mean_scores = []
     total_score = 0
     record = 0
+    
     agent = Agent()
     
-    # create results folder in the same directory as this script
+    # Setup foldere
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.join(script_dir, 'results')
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
-    
-    # create both game variants
-    easy_game = SnakeGame(w=120, h=120, render=False)
-    normal_game = SnakeGame(w=160, h=160, render=False)
-    hard_game = SnakeGame(w=200, h=200, render=False)
-    ultra_hard_game = SnakeGame(w=240, h=240, render=False)
+        
+    # --- CURRICULUM LEARNING (Hărți de la 200px la 1000px) ---
+    small_game = SnakeGame(w=200, h=200, render=False)
+    medium_game = SnakeGame(w=400, h=400, render=False)
+    large_game = SnakeGame(w=600, h=600, render=False)
+    xlarge_game = SnakeGame(w=800, h=800, render=False)
+    xxlarge_game = SnakeGame(w=1000, h=1000, render=False)
 
     print("\n" + "="*60)
-    print(f"  Q-LEARNING SNAKE TRAINING")
+    print("  DOUBLE Q-LEARNING (OPTIMIZED) - TRAINING START")
     print("="*60)
-    print(f"total games:          {NUM_GAMES_TO_TRAIN}")
-    print(f"curriculum:           first 800 on small grid (200x200)")
-    print(f"                      next 500 on normal grid (400x400)")
-    print(f"                      next 700 on hard grid (600x600)")
-    print(f"                      last 1000 on ultra hard grid (800x800)")
-    print(f"epsilon start:        {agent.epsilon_start}")
-    print(f"epsilon min:          {agent.epsilon_min}")
-    print(f"gamma:                {agent.gamma}")
-    print(f"ui mode:              disabled (fast training)")
+    print(f" Target Games: {NUM_GAMES_TO_TRAIN}")
+    print(f" Curriculum:   Small(200) -> XXL(1000)")
     print("="*60 + "\n")
 
-    with tqdm(total=NUM_GAMES_TO_TRAIN, desc="training progress", 
-              unit="game", ncols=100) as pbar:
-        
-        for current_game in range(1, NUM_GAMES_TO_TRAIN + 1):
-            if current_game <= 800:
-                game = easy_game
-                difficulty = "EASY"
-            elif current_game <= 1300:
-                game = normal_game
-                difficulty = "NORMAL"
-            elif current_game <= 2000:
-                game = hard_game
-                difficulty = "HARD"
+    start_time = time_module.time()
+    
+    with tqdm(total=NUM_GAMES_TO_TRAIN, desc="Training", unit="game", ncols=100) as pbar:
+        for i in range(1, NUM_GAMES_TO_TRAIN + 1):
+            # Selectare Dificultate
+            if i <= 1000:
+                game = small_game
+                difficulty = "SMALL"
+            elif i <= 2000:
+                game = medium_game
+                difficulty = "MEDIUM"
+            elif i <= 3000:
+                game = large_game
+                difficulty = "LARGE"
+            elif i <= 4000:
+                game = xlarge_game
+                difficulty = "XLARGE"
             else:
-                game = ultra_hard_game
-                difficulty = "ULTRA HARD"
+                game = xxlarge_game
+                difficulty = "XXLARGE"
             
-            done = False
-            agent.start_recording()
-            
-            while not done:
-                agent.record_frame(game)
-                
-                state_old = agent.get_state(game)
-                final_move = agent.get_action(state_old)
-                reward, done, score = game.step(final_move)
-                state_new = agent.get_state(game)
-
-                agent.train_short_memory(state_old, final_move, reward, state_new, done)
-                agent.remember(state_old, final_move, reward, state_new, done)
-            
-            agent.record_frame(game)
-            
-            if score > record:
-                record = score
-                agent.save_model()
-                agent.save_best_game(score, game.w, game.h)  # PASEAZĂ DIMENSIUNILE REALE
-            
+            # Resetare Joc
             game.reset()
             agent.n_games += 1
-            agent.train_long_memory()
+            agent.start_recording() # Metodă specifică agentului tău nou
+            agent.record_frame(game) # Înregistrează cadrul inițial
+            
+            done = False
+            while not done:
+                # 1. Obține starea (discretizată de agent)
+                state_old = agent.get_state(game)
+                
+                # 2. Alege acțiunea
+                final_move = agent.get_action(state_old)
+                
+                # 3. Execută pasul
+                reward, done, score = game.step(final_move)
+                
+                # 4. Obține noua stare
+                state_new = agent.get_state(game)
+                
+                # 5. Antrenament Pas cu Pas (Short Memory)
+                agent.train_short_memory(state_old, final_move, reward, state_new, done)
+                
+                # 6. Salvare în memorie (Prioritized Replay)
+                agent.remember(state_old, final_move, reward, state_new, done)
+                
+                # 7. Înregistrare cadru pentru replay
+                agent.record_frame(game)
 
+            # La finalul jocului: Antrenament din Memorie (Long Memory)
+            agent.train_long_memory()
+            
+            # Verificare Record și Salvare
+            if score > record:
+                record = score
+                agent.save_model() # Salvează tabelele Q
+                # Salvează replay-ul (agentul tău știe să copieze current_frames în best_frames)
+                is_best = agent.save_best_game(score, game.w, game.h)
+            
+            # Statistici
             scores.append(score)
             total_score += score
             mean_score = total_score / agent.n_games
             mean_scores.append(mean_score)
             
+            # Update bară progres
+            q_size = len(agent.q_table_1) # Vedem câte stări unice a învățat
             pbar.set_postfix({
                 'score': score,
+                'mean': f"{mean_score:.1f}",
                 'record': record,
-                'mean': f'{mean_score:.1f}',
-                'diff': difficulty,
-                'states': len(agent.q_table_1)
+                'grid': difficulty,
+                'States': q_size
             })
             pbar.update(1)
 
+    # --- FINALIZARE ---
+    elapsed_total = time_module.time() - start_time
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
     print("\n" + "="*60)
     print("  TRAINING COMPLETED!")
+    print(f"  Max Score: {record}")
+    print(f"  Final Mean: {mean_scores[-1]:.2f}")
+    print(f"  Time: {elapsed_total:.1f}s")
     print("="*60)
-    print(f"max score reached:    {record}")
-    print(f"final mean score:     {mean_scores[-1]:.2f}")
-    print(f"states learned:       {len(agent.q_table_1)}")
-    print(f"experiences stored:   {len(agent.memory)}")
-    print("="*60 + "\n")
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_filename = os.path.join(results_dir, f"training_plot_{timestamp}.png")
-    
-    print("generating and saving plot...")
+
+    # Salvare Grafic
+    plot_filename = os.path.join(results_dir, f"double_q_plot_{timestamp}.png")
     plot_final(scores, mean_scores, save_path=plot_filename)
     
-    # save replay with CORRECT dimensions
+    # Salvare Replay (din agentul tău)
     if len(agent.best_game_frames) > 0:
-        replay_filename = os.path.join(results_dir, f"best_game_replay_{timestamp}.npy")
+        replay_filename = os.path.join(results_dir, f"double_q_best_replay_{timestamp}.npy")
         
-        # FOLOSEȘTE DIMENSIUNILE SALVATE ÎN AGENT
-        np.save(replay_filename, {
-            'frames': agent.best_game_frames,
-            'score': agent.best_game_score,
-            'w': agent.best_game_w,  # DIMENSIUNILE CORECTE
-            'h': agent.best_game_h   # DIMENSIUNILE CORECTE
-        })
-        print(f"Best game replay saved: {replay_filename}")
-        print(f"Grid size: {agent.best_game_w}x{agent.best_game_h}")
-        print(f"Total frames recorded: {len(agent.best_game_frames)}")
+        # Agentul tău stochează obiecte Point, trebuie să le convertim pentru salvare
+        # (sau agentul le are deja ca dict-uri? Verificăm codul tău: le are ca Point în listă de dicts)
+        # NPY save cere structuri serializabile. 
+        # Convertim manual aici pentru siguranță:
+        
+        serializable_frames = []
+        for frame in agent.best_game_frames:
+            serializable_frames.append({
+                'snake': [{'x': p.x, 'y': p.y} for p in frame['snake']], # Convert Point to dict
+                'food': {'x': frame['food'].x, 'y': frame['food'].y},
+                'score': frame['score'],
+                'direction': frame['direction']
+            })
 
-        if replay_filename and os.path.exists(replay_filename):
-            print("\n" + "="*60)
-            response = input("Do you want to watch the best game replay? (y/n): ").strip().lower()
-            
-            if response == 'y' or response == 'yes':
-                print("\nStarting replay in 2 seconds...")
-                time_module.sleep(2)
-                
-                from replay_best_game import replay_best_game
-                replay_best_game(replay_filename)
-            else:
-                print("\nReplay skipped. You can watch it later by running:")
-                print(f"python replay_best_game.py")
+        np.save(replay_filename, {
+            'frames': serializable_frames, 
+            'score': agent.best_game_score,
+            'w': agent.best_game_w,
+            'h': agent.best_game_h
+        })
+        print(f"✅ Replay saved: {replay_filename}")
+        
+        # Opțiune vizionare
+        print("\nTo watch replay, run 'python replay_best_game.py' and select this file.")
 
 if __name__ == '__main__':
     train()
-    
