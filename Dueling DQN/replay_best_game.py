@@ -11,7 +11,7 @@ from game import SnakeGame, Point, Direction, BLOCK_SIZE, font
 try:
     from game import (GREEN, DARK_RED, BROWN, LEAF_GREEN, 
                       SNAKE_GREEN, SNAKE_DARK_GREEN, SNAKE_LIGHT_GREEN, 
-                      WHITE, BLACK, RED, GRAY) # Am adaugat GRAY
+                      WHITE, BLACK, RED, GRAY)
 except ImportError:
     GREEN = (124, 252, 0)
     RED = (200, 0, 0)
@@ -30,7 +30,6 @@ def get_fixed_obstacles(w, h):
     obstacles = []
     cx, cy = (w // BLOCK_SIZE) // 2, (h // BLOCK_SIZE) // 2
     
-    # 1. Piloni
     pilar_offset = 5
     pillars = [
         (pilar_offset, pilar_offset),
@@ -41,7 +40,6 @@ def get_fixed_obstacles(w, h):
     for px, py in pillars:
         obstacles.append(Point(px * BLOCK_SIZE, py * BLOCK_SIZE))
 
-    # 2. Ziduri centrale cu gaură
     gap = 3
     for x in range(cx - 8, cx + 9):
         if abs(x - cx) < gap: continue
@@ -114,7 +112,6 @@ def replay_best_game(replay_file):
     pygame.display.set_caption(f'Score: {score}')
     clock = pygame.time.Clock()
     
-    # GENERĂM OBSTACOLELE FIXE PENTRU VIZUALIZARE
     obstacles = get_fixed_obstacles(w, h)
 
     for i, frame in enumerate(frames):
@@ -124,13 +121,12 @@ def replay_best_game(replay_file):
         
         display.fill(GREEN)
         
-        # DESENĂM OBSTACOLELE
         draw_obstacles(display, obstacles)
         
         draw_snake(display, frame['snake'], frame['direction'])
         draw_apple(display, frame['food'].x, frame['food'].y)
         pygame.display.flip()
-        clock.tick(30) # Viteză moderată
+        clock.tick(30)
     
     time.sleep(1)
     pygame.quit()
@@ -139,7 +135,6 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.join(script_dir, 'results')
     
-    # Căutăm fișiere specifice
     replay_files = [f for f in os.listdir(results_dir) if f.startswith('dueling_dqn_best_replay_')]
     
     if replay_files:

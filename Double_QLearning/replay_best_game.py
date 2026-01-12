@@ -1,8 +1,6 @@
 import sys
 import os
 
-# --- FIX IMPORTURI ---
-# Adăugăm folderul părinte în path pentru a găsi game.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pygame
@@ -10,13 +8,12 @@ import numpy as np
 import time
 from game import SnakeGame, Point, Direction, BLOCK_SIZE
 
-# --- CONFIGURARE CULORI ---
 try:
     from game import (GREEN, DARK_RED, BROWN, LEAF_GREEN, 
                       SNAKE_GREEN, SNAKE_DARK_GREEN, SNAKE_LIGHT_GREEN, 
                       WHITE, BLACK, RED, GRAY)
 except ImportError:
-    # Fallback dacă nu sunt definite în game.py
+    
     GREEN = (124, 252, 0)
     RED = (200, 0, 0)
     DARK_RED = (150, 0, 0)
@@ -39,7 +36,6 @@ def get_fixed_obstacles(w, h):
     rows = h // BLOCK_SIZE
     cx, cy = cols // 2, rows // 2
     
-    # 1. Piloni în colțuri
     pilar_offset = 5
     pillars = [
         (pilar_offset, pilar_offset),
@@ -50,15 +46,12 @@ def get_fixed_obstacles(w, h):
     for px, py in pillars:
         obstacles.append(Point(px * BLOCK_SIZE, py * BLOCK_SIZE))
 
-    # 2. Ziduri centrale (Crucea)
     gap = 3
-    # Orizontal
     for x in range(cx - 8, cx + 9):
         if abs(x - cx) < gap: continue
         pt = Point(x * BLOCK_SIZE, cy * BLOCK_SIZE)
         if pt not in obstacles: obstacles.append(pt)
             
-    # Vertical
     for y in range(cy - 6, cy + 7):
         if abs(y - cy) < gap: continue
         pt = Point(cx * BLOCK_SIZE, y * BLOCK_SIZE)
@@ -85,7 +78,6 @@ def draw_apple(display, x, y):
 def draw_snake(display, snake, direction):
     if len(snake) == 0: return
     for i, pt in enumerate(snake):
-        # Gestionăm cazul în care datele sunt salvate ca dict sau ca obiect Point
         px = pt.x if hasattr(pt, 'x') else pt['x']
         py = pt.y if hasattr(pt, 'y') else pt['y']
         
@@ -93,12 +85,10 @@ def draw_snake(display, snake, direction):
         pygame.draw.rect(display, SNAKE_GREEN, rect, border_radius=5)
         pygame.draw.rect(display, SNAKE_DARK_GREEN, rect, width=2, border_radius=5)
         
-        # Detalii burtă
         if i > 0:
             center_rect = pygame.Rect(px + 6, py + 6, BLOCK_SIZE - 12, BLOCK_SIZE - 12)
             pygame.draw.rect(display, SNAKE_LIGHT_GREEN, center_rect, border_radius=3)
         
-        # Conexiuni între segmente
         if i < len(snake) - 1:
             next_pt = snake[i + 1]
             npx = next_pt.x if hasattr(next_pt, 'x') else next_pt['x']
@@ -112,7 +102,6 @@ def draw_snake(display, snake, direction):
                 else: connect_rect = pygame.Rect(px - 2, py + 2, 6, BLOCK_SIZE - 4)
             pygame.draw.rect(display, SNAKE_GREEN, connect_rect)
     
-    # Desenare Cap
     head = snake[0]
     hx = head.x if hasattr(head, 'x') else head['x']
     hy = head.y if hasattr(head, 'y') else head['y']
@@ -120,7 +109,6 @@ def draw_snake(display, snake, direction):
     head_cx = hx + BLOCK_SIZE // 2
     head_cy = hy + BLOCK_SIZE // 2
     
-    # Poziționare ochi
     if direction == Direction.RIGHT: eye1, eye2 = (head_cx+3, head_cy-4), (head_cx+3, head_cy+4)
     elif direction == Direction.LEFT: eye1, eye2 = (head_cx-3, head_cy-4), (head_cx-3, head_cy+4)
     elif direction == Direction.UP: eye1, eye2 = (head_cx-4, head_cy-3), (head_cx+4, head_cy-3)
@@ -130,7 +118,6 @@ def draw_snake(display, snake, direction):
     pygame.draw.circle(display, BLACK, eye1, 1); pygame.draw.circle(display, BLACK, eye2, 1)
 
 def replay_best_game(replay_file):
-    # Încărcare date
     try:
         data = np.load(replay_file, allow_pickle=True).item()
     except FileNotFoundError:
@@ -139,7 +126,7 @@ def replay_best_game(replay_file):
 
     frames = data['frames']
     score = data['score']
-    w = data.get('w', 640) # Default la 640 dacă lipsește
+    w = data.get('w', 640)
     h = data.get('h', 480)
     
     print(f"\n--- REPLAY DOUBLE Q-LEARNING ---")
@@ -153,7 +140,6 @@ def replay_best_game(replay_file):
     pygame.display.set_caption(f'Double Q Replay - Score: {score}')
     clock = pygame.time.Clock()
     
-    # Generăm obstacolele
     obstacles = get_fixed_obstacles(w, h)
 
     running = True
@@ -171,20 +157,17 @@ def replay_best_game(replay_file):
         
         display.fill(GREEN)
         
-        # 1. Desenăm Obstacole
         draw_obstacles(display, obstacles)
         
-        # 2. Extragem coordonatele mâncării (Robust: dict sau object)
         food = frame['food']
         fx = food.x if hasattr(food, 'x') else food['x']
         fy = food.y if hasattr(food, 'y') else food['y']
         
-        # 3. Desenăm Șarpe și Măr
         draw_snake(display, frame['snake'], frame['direction'])
         draw_apple(display, fx, fy)
         
         pygame.display.flip()
-        clock.tick(20) # FPS - ajustează viteza aici
+        clock.tick(20)
     
     print("Replay finished.")
     time.sleep(1)
@@ -198,12 +181,10 @@ if __name__ == '__main__':
         print(f"Results directory not found: {results_dir}")
         sys.exit()
 
-    # Căutăm fișiere specifice pentru DOUBLE Q (double_q_best_replay_)
     prefix = 'double_q_best_replay_'
     replay_files = [f for f in os.listdir(results_dir) if f.startswith(prefix)]
     
     if replay_files:
-        # Sortăm pentru a lua cel mai recent
         latest_replay = sorted(replay_files)[-1]
         replay_path = os.path.join(results_dir, latest_replay)
         print(f"Loading replay file: {latest_replay}")
