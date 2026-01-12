@@ -31,19 +31,19 @@ LEAF_GREEN = (34, 139, 34)  # Green for apple leaf
 SNAKE_GREEN = (34, 139, 34)  # Main snake body color
 SNAKE_DARK_GREEN = (0, 100, 0)  # Darker green for outline
 SNAKE_LIGHT_GREEN = (144, 238, 144)  # Lighter green for belly/highlights
-GRAY = (128, 128, 128) # CULOARE OBSTACOLE
+GRAY = (128, 128, 128) # Grey obstacles color
 
 # game constants
 BLOCK_SIZE = 20
-SPEED = 20 # Viteza pentru modul manual (poți mări la 40)
+SPEED = 20 # playing game speed
 
-class SnakeGame:
+class SnakeGame: 
     """
-    Snake game environment with FIXED OBSTACLES.
+    Snake game environment with FIXED OBSTACLES. 
     """
     def __init__(self, w=800, h=800, render=False):
         self.w = w
-        self.h = h
+        self. h = h
         self.render = render
         
         # init display only if render=true
@@ -56,44 +56,44 @@ class SnakeGame:
             self.clock = None
         
         # reset the game to start
-        self.reset()
+        self. reset()
 
     def reset(self):
         """
         resets the game to the initial state
         """
         self.direction = Direction.RIGHT
-        self.head = Point(self.w / 2, self.h / 2)
+        self. head = Point(self.w / 2, self.h / 2)
         self.snake = [self.head,
                       Point(self.head.x - BLOCK_SIZE, self.head.y),
                       ]
         self.score = 0
         self.food = None
         
-        # --- GENERARE OBSTACOLE FIXE ---
+        # --- fixed obstacle generation ---
         self.obstacles = []
         self._place_fixed_obstacles()
         # -------------------------------
         
         self._place_food()
-        self.frame_iteration = 0
+        self. frame_iteration = 0
 
     def _place_fixed_obstacles(self):
         """
-        Plasează obstacole într-un pattern FIX (Standard Benchmark Map).
-        Acest lucru asigură o comparație corectă între agenți și permite replay-ului să funcționeze.
+        places obstacles in a FIXED pattern (Standard Benchmark Map).
+        this ensures fair comparison between agents and allows replay to work correctly.
         """
         self.obstacles = []
         
-        # Calculăm centrul grilei
+        # calculate grid center
         cx, cy = (self.w // BLOCK_SIZE) // 2, (self.h // BLOCK_SIZE) // 2
         
-        # 1. Piloni în colțuri (offset de 5 blocuri)
+        # 1. pillars in corners (5 block offset)
         pilar_offset = 5
         pillars = [
             (pilar_offset, pilar_offset),
             (pilar_offset, (self.h // BLOCK_SIZE) - pilar_offset),
-            ((self.w // BLOCK_SIZE) - pilar_offset, pilar_offset),
+            ((self. w // BLOCK_SIZE) - pilar_offset, pilar_offset),
             ((self.w // BLOCK_SIZE) - pilar_offset, (self.h // BLOCK_SIZE) - pilar_offset)
         ]
         
@@ -101,22 +101,22 @@ class SnakeGame:
             pt = Point(px * BLOCK_SIZE, py * BLOCK_SIZE)
             self.obstacles.append(pt)
 
-        # 2. Zid orizontal central (cu gaură în mijloc)
+        # 2. central horizontal wall (with gap in middle)
         gap = 3
         for x in range(cx - 8, cx + 9):
-            if abs(x - cx) < gap: continue # Facem gaura
+            if abs(x - cx) < gap:  continue # create the gap
             pt = Point(x * BLOCK_SIZE, cy * BLOCK_SIZE)
             if pt not in self.obstacles:
                 self.obstacles.append(pt)
                 
-        # 3. Zid vertical central (cu gaură în mijloc)
+        # 3. central vertical wall (with gap in middle)
         for y in range(cy - 6, cy + 7):
             if abs(y - cy) < gap: continue
             pt = Point(cx * BLOCK_SIZE, y * BLOCK_SIZE)
             if pt not in self.obstacles:
                 self.obstacles.append(pt)
                 
-        # Siguranță: Eliminăm orice obstacol care s-ar suprapune cu startul șarpelui
+        # safety: remove any obstacle that would overlap with snake start
         self.obstacles = [pt for pt in self.obstacles if pt not in self.snake]
 
     def _place_food(self):
@@ -131,33 +131,33 @@ class SnakeGame:
 
         self.food = Point(x, y)
         
-        # Verificăm să nu fie pe șarpe SAU pe obstacole
+        # check that it's not on snake OR obstacles
         if self.food in self.snake or self.food in self.obstacles:
             self._place_food()
 
     def step(self, action):
-        self.frame_iteration += 1
+        self. frame_iteration += 1
         old_distance = abs(self.head.x - self.food.x) + abs(self.head.y - self.food.y)
         
         self._move(action)
-        self.snake.insert(0, self.head)
+        self. snake.insert(0, self.head)
         
         reward = 0
         done = False
         
-        # COLIZIUNE (Pereți, Sine, OBSTACOLE)
+        # collision (walls, self, obstacles)
         if self.is_collision():
             done = True
             reward = -10
             return reward, done, self.score
         
-        # TIMEOUT
+        # timeout
         if self.frame_iteration > 100 * len(self.snake):
             done = True
             reward = -10
             return reward, done, self.score
         
-        # MÂNCARE
+        # food
         if self.head == self.food:
             self.score += 1
             reward = 10
@@ -166,7 +166,7 @@ class SnakeGame:
         else:
             self.snake.pop()
             
-            # Reward shaping (distanță)
+            # reward shaping (distance)
             new_distance = abs(self.head.x - self.food.x) + abs(self.head.y - self.food.y)
             if new_distance < old_distance:
                 reward = 0.1
@@ -175,20 +175,20 @@ class SnakeGame:
         
         if self.render:
             self._update_ui()
-            self.clock.tick(SPEED)
+            self. clock.tick(SPEED)
         
         return reward, done, self.score
 
     def is_collision(self, pt=None):
         if pt is None:
             pt = self.head
-        # Lovire pereți
+        # hit walls
         if pt.x > self.w - BLOCK_SIZE or pt.x < 0 or pt.y > self.h - BLOCK_SIZE or pt.y < 0:
             return True
-        # Lovire propriul corp
-        if pt in self.snake[1:]:
+        # hit own body
+        if pt in self. snake[1:]:
             return True
-        # Lovire OBSTACOLE
+        # hit obstacles
         if pt in self.obstacles:
             return True
             
@@ -206,30 +206,30 @@ class SnakeGame:
         pygame.draw.polygon(self.display, LEAF_GREEN, leaf_points)
 
     def _draw_snake(self):
-        if len(self.snake) == 0: return
+        if len(self.snake) == 0:  return
         for i, pt in enumerate(self.snake):
-            rect = pygame.Rect(pt.x + 2, pt.y + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4)
+            rect = pygame.Rect(pt. x + 2, pt.y + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4)
             pygame.draw.rect(self.display, SNAKE_GREEN, rect, border_radius=5)
             pygame.draw.rect(self.display, SNAKE_DARK_GREEN, rect, width=2, border_radius=5)
             if i > 0:
-                center_rect = pygame.Rect(pt.x + 6, pt.y + 6, BLOCK_SIZE - 12, BLOCK_SIZE - 12)
+                center_rect = pygame.Rect(pt. x + 6, pt.y + 6, BLOCK_SIZE - 12, BLOCK_SIZE - 12)
                 pygame.draw.rect(self.display, SNAKE_LIGHT_GREEN, center_rect, border_radius=3)
             if i < len(self.snake) - 1:
                 next_pt = self.snake[i + 1]
-                if pt.x == next_pt.x:
-                    if pt.y < next_pt.y: connect_rect = pygame.Rect(pt.x + 2, pt.y + BLOCK_SIZE - 4, BLOCK_SIZE - 4, 6)
-                    else: connect_rect = pygame.Rect(pt.x + 2, pt.y - 2, BLOCK_SIZE - 4, 6)
-                else:
+                if pt. x == next_pt.x:
+                    if pt.y < next_pt.y: connect_rect = pygame.Rect(pt. x + 2, pt.y + BLOCK_SIZE - 4, BLOCK_SIZE - 4, 6)
+                    else: connect_rect = pygame.Rect(pt.x + 2, pt. y - 2, BLOCK_SIZE - 4, 6)
+                else: 
                     if pt.x < next_pt.x: connect_rect = pygame.Rect(pt.x + BLOCK_SIZE - 4, pt.y + 2, 6, BLOCK_SIZE - 4)
-                    else: connect_rect = pygame.Rect(pt.x - 2, pt.y + 2, 6, BLOCK_SIZE - 4)
-                pygame.draw.rect(self.display, SNAKE_GREEN, connect_rect)
+                    else: connect_rect = pygame.Rect(pt.x - 2, pt. y + 2, 6, BLOCK_SIZE - 4)
+                pygame.draw. rect(self.display, SNAKE_GREEN, connect_rect)
         
         head = self.snake[0]
-        head_center_x = head.x + BLOCK_SIZE // 2
+        head_center_x = head. x + BLOCK_SIZE // 2
         head_center_y = head.y + BLOCK_SIZE // 2
         if self.direction == Direction.RIGHT: eye1, eye2 = (head_center_x+3, head_center_y-4), (head_center_x+3, head_center_y+4)
         elif self.direction == Direction.LEFT: eye1, eye2 = (head_center_x-3, head_center_y-4), (head_center_x-3, head_center_y+4)
-        elif self.direction == Direction.UP: eye1, eye2 = (head_center_x-4, head_center_y-3), (head_center_x+4, head_center_y-3)
+        elif self.direction == Direction. UP: eye1, eye2 = (head_center_x-4, head_center_y-3), (head_center_x+4, head_center_y-3)
         else: eye1, eye2 = (head_center_x-4, head_center_y+3), (head_center_x+4, head_center_y+3)
         pygame.draw.circle(self.display, WHITE, eye1, 3); pygame.draw.circle(self.display, WHITE, eye2, 3)
         pygame.draw.circle(self.display, BLACK, eye1, 1); pygame.draw.circle(self.display, BLACK, eye2, 1)
@@ -237,24 +237,24 @@ class SnakeGame:
     def _update_ui(self):
         if not self.render: return
         
-        # 1. Fundal
+        # 1. background
         self.display.fill(GREEN)
         
-        # 2. Obstacole (FIXE)
+        # 2. obstacles (fixed)
         for pt in self.obstacles:
-            pygame.draw.rect(self.display, GRAY, pygame.Rect(pt.x, pt.y, BLOCK_SIZE, BLOCK_SIZE))
+            pygame.draw.rect(self.display, GRAY, pygame. Rect(pt.x, pt.y, BLOCK_SIZE, BLOCK_SIZE))
             pygame.draw.rect(self.display, WHITE, pygame.Rect(pt.x, pt.y, BLOCK_SIZE, BLOCK_SIZE), 1)
         
-        # 3. Șarpe
+        # 3. snake
         self._draw_snake()
 
-        # 4. Măr
-        self._draw_apple(self.food.x, self.food.y)
+        # 4. apple
+        self._draw_apple(self. food.x, self.food. y)
         
-        # 5. Scor
+        # 5. score
         text = font.render("Score: " + str(self.score), True, WHITE)
         self.display.blit(text, [0, 0])
-        pygame.display.flip()
+        pygame.display. flip()
 
     def _move(self, action):
         clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
@@ -265,20 +265,20 @@ class SnakeGame:
         else: next_idx = (idx - 1) % 4; new_dir = clock_wise[next_idx]
 
         self.direction = new_dir
-        x = self.head.x; y = self.head.y
+        x = self.head. x; y = self.head. y
         if self.direction == Direction.RIGHT: x += BLOCK_SIZE
         elif self.direction == Direction.LEFT: x -= BLOCK_SIZE
-        elif self.direction == Direction.DOWN: y += BLOCK_SIZE
+        elif self. direction == Direction.DOWN: y += BLOCK_SIZE
         elif self.direction == Direction.UP: y -= BLOCK_SIZE
         self.head = Point(x, y)
 
 # Manual testing
-if __name__ == '__main__':
+if __name__ == '__main__': 
     game = SnakeGame(render=True)
     while True:
-        # Loop simplificat pentru vizualizare hartă
-        # Ca să miști șarpele, trebuie adăugată logică de citire taste, 
-        # dar pentru a vedea harta e suficient să rulezi și se va opri când lovește zidul.
-        game_over, score, _ = game.step([1, 0, 0]) # Mereu înainte
-        if game_over:
+        # simplified loop for map visualization
+        # to move the snake, you need to add keyboard input logic, 
+        # but to see the map it's enough to run and it will stop when hitting the wall.
+        game_over, score, _ = game.step([1, 0, 0]) # always forward
+        if game_over: 
             game.reset()
